@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Vérification</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container">
+    <h1>🔐 VÉRIFICATION</h1>
+    <p>Un code a été envoyé à <strong id="emailAff"></strong></p>
+    <p>⚠️ <strong>Vérifiez vos spams</strong> si vous ne recevez pas l'email</p>
+    <input type="text" id="code" placeholder="CODE À 6 CHIFFRES" maxlength="6"><br>
+    <button id="verifyBtn" onclick="verifier()">✅ VÉRIFIER MON COMPTE</button>
+    <button id="resendBtn" onclick="renvoyerCode()">📧 RENVOYER LE CODE</button>
+    <button onclick="location.href='index.html'">⬅ ANNULER</button>
+</div>
+<button class="btn-son">🔊</button>
+
+<div id="fullscreenLoader" class="fullscreen-loader">
+    <div class="spinner"></div>
+    <div class="message" id="loaderMessage">Vérification en cours...</div>
+</div>
+
+<div id="modal" class="modal"><div class="modal-content"><div class="modal-icon" id="modalIcon">⚔️</div><div class="modal-title" id="modalTitle">Titre</div><div class="modal-message" id="modalMessage">Message</div><button class="modal-btn" onclick="closeModal()">OK</button></div></div>
+<script src="js/son.js"></script>
+<script>
+const modal=document.getElementById('modal');
+const fullscreenLoader=document.getElementById('fullscreenLoader');
+function showModal(title,message,type){
+    const icon=document.getElementById('modalIcon');
+    const titleEl=document.getElementById('modalTitle');
+    const msgEl=document.getElementById('modalMessage');
+    modal.className='modal show modal-'+type;
+    icon.innerHTML=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+    titleEl.innerHTML=title;
+    msgEl.innerHTML=message;
+    setTimeout(()=>{if(modal.classList.contains('show'))closeModal();},4000);
+}
+function closeModal(){modal.classList.remove('show');}
+function showLoader(msg){document.getElementById('loaderMessage').innerHTML=msg;fullscreenLoader.classList.add('show');}
+function hideLoader(){fullscreenLoader.classList.remove('show');}
+
+const urlParams = new URLSearchParams(window.location.search);
+const email = urlParams.get('email');
+document.getElementById('emailAff').innerText = email;
+
+async function verifier() {
+    let code = document.getElementById('code').value;
+    if (!code || code.length !== 6) {
+        showModal('⚠️ CODE INVALIDE', 'Veuillez entrer un code à 6 chiffres', 'error');
+        return;
+    }
+    showLoader('Vérification du code...');
+    let res = await fetch('/api/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email, code}) });
+    let data = await res.json();
+    hideLoader();
+    if (data.ok) {
+        showModal('✅ COMPTE ACTIVÉ !', data.msg, 'success');
+        setTimeout(() => { location.href = 'index.html'; }, 2000);
+    } else {
+        showModal('❌ CODE INVALIDE', data.msg, 'error');
+    }
+}
+
+async function renvoyerCode() {
+    showLoader('Envoi d\'un nouveau code...');
+    let res = await fetch('/api/resend-code', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email}) });
+    let data = await res.json();
+    hideLoader();
+    if (data.ok) {
+        showModal('✅ CODE RENVOYÉ !', data.msg, 'success');
+    } else {
+        showModal('❌ ERREUR', data.msg, 'error');
+    }
+}
+</script>
+<style>
+.container{background:#111;border:2px solid #f30;border-radius:20px;padding:30px;width:450px;margin:auto;text-align:center}
+input,button{width:100%;padding:10px;margin:5px 0;background:#222;color:#f80;border:1px solid #f30;border-radius:5px}
+button{background:#c00;color:#fff;cursor:pointer}h1{color:#f60}
+</style>
+</body>
+</html>

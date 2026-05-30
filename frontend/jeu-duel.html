@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>DOOM DAME - DUEL</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+body{background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:monospace;overflow:hidden;position:fixed;top:0;left:0;width:100%;height:100%}
+.game-container{background:linear-gradient(45deg,#1a0000,#2a0000);border:2px solid #f30;border-radius:15px;padding:12px;text-align:center;width:95vw;max-width:750px;height:auto;max-height:98vh;display:flex;flex-direction:column}
+h2{color:#f60;margin:0 0 5px;font-size:1.1em}
+.turn{font-size:14px;font-weight:bold;padding:4px 12px;border-radius:10px;display:inline-block;margin:5px auto}
+.turn-blue{background:#3399ff;color:#fff}
+.turn-red{background:#ff3333;color:#fff}
+canvas{border:2px solid #f60;background:#1a0a0a;cursor:pointer;display:block;margin:0 auto;width:100%;height:auto;max-width:500px;aspect-ratio:1/1}
+.info-panel{margin-top:8px;display:flex;justify-content:center;gap:12px;color:#f80;flex-wrap:wrap}
+.info-panel div{background:rgba(0,0,0,0.8);padding:3px 8px;border-radius:8px;font-size:10px}
+.status{margin-top:8px;padding:4px;background:#111;border-radius:8px;color:#ffaa44;font-weight:bold;font-size:11px}
+.buttons{margin-top:8px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap}
+button{padding:4px 10px;background:#c00;color:#fff;border:none;cursor:pointer;font-weight:bold;border-radius:8px;font-size:10px}
+.btn-son{position:fixed;bottom:10px;right:10px;width:40px;height:40px;border-radius:50%;background:#c00;font-size:16px}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:1000;justify-content:center;align-items:center}
+.modal.show{display:flex}
+.modal-content{background:linear-gradient(135deg,#1a0000,#2a0000);border:2px solid #f30;border-radius:20px;padding:20px;text-align:center;max-width:300px;width:85%}
+.modal-icon{font-size:45px;margin-bottom:10px}
+.modal-title{font-size:20px;font-weight:bold;margin-bottom:8px}
+.modal-success .modal-title{color:#4f4}
+.modal-error .modal-title{color:#f44}
+.modal-message{color:#f80;margin-bottom:15px;font-size:12px}
+.modal-btn{background:linear-gradient(45deg,#c00,#600);color:#fff;border:none;padding:8px 20px;border-radius:8px;font-size:14px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="game-container">
+    <h2>⚔️ DOOM DAME - DUEL ⚔️</h2>
+    <div class="turn" id="turnIndicator">🔵 VOTRE TOUR</div>
+    <canvas id="boardCanvas" width="500" height="500"></canvas>
+    <div class="info-panel"><div>🔵 <span id="joueurBleu">JOUEUR BLEU</span></div><div>🔴 <span id="joueurRouge">JOUEUR ROUGE</span></div></div>
+    <div class="status" id="gameStatus">En attente...</div>
+    <div class="buttons"><button onclick="abandonner()">🏳️ ABANDONNER</button><button onclick="location.href='menu.html'">🏠 MENU</button></div>
+</div>
+<button class="btn-son" onclick="toggleSonGlobal()">🔊</button>
+<div id="modal" class="modal"><div class="modal-content"><div class="modal-icon" id="modalIcon">⚔️</div><div class="modal-title" id="modalTitle">Titre</div><div class="modal-message" id="modalMessage">Message</div><button class="modal-btn" onclick="closeModal()">OK</button></div></div>
+<script src="js/son.js"></script>
+<script>
+const modal=document.getElementById('modal');
+function showModal(title,message,type){
+    const icon=document.getElementById('modalIcon');
+    const titleEl=document.getElementById('modalTitle');
+    const msgEl=document.getElementById('modalMessage');
+    modal.className='modal show modal-'+type;
+    icon.innerHTML=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+    titleEl.innerHTML=title;
+    msgEl.innerHTML=message;
+    setTimeout(()=>{if(modal.classList.contains('show'))closeModal();},3000);
+}
+function closeModal(){modal.classList.remove('show');}
+
+const code = localStorage.getItem('duelCode');
+const maCouleur = localStorage.getItem('duelRole') === 'createur' ? 'blue' : 'red';
+const pseudo = localStorage.getItem('pseudo') || 'Guerrier';
+const flag = localStorage.getItem('flag') || '🏳️';
+document.getElementById('joueurBleu').innerHTML = maCouleur === 'blue' ? `${flag} ${pseudo}` : 'Adversaire';
+document.getElementById('joueurRouge').innerHTML = maCouleur === 'red' ? `${flag} ${pseudo}` : 'Adversaire';
+let board = Array(10).fill().map(() => Array(10).fill(null));
+let selectedRow = null, selectedCol = null;
+let gameOver = false;
+let monTour = (maCouleur === 'blue');
+let waitingCoup = false;
+const canvas = document.getElementById('boardCanvas');
+const ctx = canvas.getContext('2d');
+const cellSize = 50;
+function initBoard(){
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++)board[i][j]=null;
+    for(let i=0;i<4;i++)for(let j=0;j<10;j++)if((i+j)%2===1)board[i][j]={type:'pawn',color:'red'};
+    for(let i=6;i<10;i++)for(let j=0;j<10;j++)if((i+j)%2===1)board[i][j]={type:'pawn',color:'blue'};
+}
+function isValidMove(piece,fromRow,fromCol,toRow,toCol){
+    if(toRow<0||toRow>=10||toCol<0||toCol>=10)return false;
+    if(board[toRow][toCol]!==null)return false;
+    const dr=toRow-fromRow,dc=Math.abs(toCol-fromCol);
+    if(piece.type==='pawn'){const dir=piece.color==='blue'?-1:1;return dr===dir&&dc===1;}
+    else return Math.abs(dr)===1&&dc===1;
+}
+function isValidCapture(piece,fromRow,fromCol,toRow,toCol){
+    if(toRow<0||toRow>=10||toCol<0||toCol>=10)return false;
+    if(board[toRow][toCol]!==null)return false;
+    const dr=toRow-fromRow,dc=toCol-fromCol;
+    if(Math.abs(dr)!==Math.abs(dc))return false;
+    const stepRow=Math.sign(dr),stepCol=Math.sign(dc);
+    if(piece.type==='pawn'){
+        const dir=piece.color==='blue'?-2:2;
+        if(dr!==dir||Math.abs(dc)!==2)return false;
+        const midRow=fromRow+stepRow,midCol=fromCol+stepCol,target=board[midRow][midCol];
+        return target&&target.color!==piece.color;
+    }else{
+        let captured=null,r=fromRow+stepRow,c=fromCol+stepCol,steps=Math.abs(dr);
+        for(let s=1;s<steps;s++){
+            if(board[r][c]!==null){
+                if(captured===null&&board[r][c].color!==piece.color)captured={row:r,col:c};
+                else return false;
+            }
+            r+=stepRow;c+=stepCol;
+        }
+        return captured!==null;
+    }
+}
+function getAllMoves(color){
+    let moves=[],hasCapture=false;
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        const piece=board[i][j];
+        if(piece&&piece.color===color){
+            for(let dr=-10;dr<=10;dr++)for(let dc=-10;dc<=10;dc++){
+                if(dr===0&&dc===0)continue;
+                const ni=i+dr,nj=j+dc;
+                if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidCapture(piece,i,j,ni,nj)){moves.push({fromRow:i,fromCol:j,toRow:ni,toCol:nj,isCapture:true});hasCapture=true;}
+            }
+        }
+    }
+    if(hasCapture)return moves;
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        const piece=board[i][j];
+        if(piece&&piece.color===color){
+            for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+                if(dr===0||dc===0||Math.abs(dr)!==Math.abs(dc))continue;
+                const ni=i+dr,nj=j+dc;
+                if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidMove(piece,i,j,ni,nj))moves.push({fromRow:i,fromCol:j,toRow:ni,toCol:nj,isCapture:false});
+            }
+        }
+    }
+    return moves;
+}
+function applyMove(fromRow,fromCol,toRow,toCol,isCapture){
+    const piece={...board[fromRow][fromCol]};
+    if(isCapture){
+        const dr=toRow-fromRow,dc=toCol-fromCol,stepRow=Math.sign(dr),stepCol=Math.sign(dc);
+        let r=fromRow+stepRow,c=fromCol+stepCol;
+        while(r!==toRow||c!==toCol){
+            if(board[r][c]&&board[r][c].color!==piece.color){board[r][c]=null;break;}
+            r+=stepRow;c+=stepCol;
+        }
+    }
+    board[toRow][toCol]=piece;board[fromRow][fromCol]=null;
+    if((piece.color==='blue'&&toRow===0)||(piece.color==='red'&&toRow===9))board[toRow][toCol].type='king';
+}
+function canCaptureAgain(row,col){
+    const piece=board[row][col];
+    if(!piece)return false;
+    for(let dr=-10;dr<=10;dr++)for(let dc=-10;dc<=10;dc++){
+        if(dr===0&&dc===0)continue;
+        const ni=row+dr,nj=col+dc;
+        if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidCapture(piece,row,col,ni,nj))return true;
+    }
+    return false;
+}
+function checkWin(){
+    let blue=0,red=0;
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        if(board[i][j]&&board[i][j].color==='blue')blue++;
+        if(board[i][j]&&board[i][j].color==='red')red++;
+    }
+    if(blue===0)return'red';
+    if(red===0)return'blue';
+    return null;
+}
+async function envoyerCoup(coup){
+    await fetch('/api/duel/coup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,coup})});
+}
+async function verifierEtat(){
+    if(waitingCoup)return;
+    waitingCoup=true;
+    let res=await fetch('/api/duel/etat-jeu/'+code);
+    let data=await res.json();
+    if(data.coup){
+        applyMove(data.coup.fromRow,data.coup.fromCol,data.coup.toRow,data.coup.toCol,data.coup.isCapture);
+        draw();
+        monTour=true;
+        document.getElementById('gameStatus').innerHTML='🔵 VOTRE TOUR';
+        document.getElementById('turnIndicator').className='turn turn-blue';
+        document.getElementById('turnIndicator').innerHTML='🔵 VOTRE TOUR';
+        let win=checkWin();
+        if(win){
+            gameOver=true;
+            if(win===maCouleur) showModal('🏆 VICTOIRE !', 'Vous avez gagné le duel !', 'success');
+            else showModal('💀 DÉFAITE', 'Vous avez perdu le duel...', 'error');
+        }
+    }
+    waitingCoup=false;
+}
+function draw(){
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        ctx.fillStyle=(i+j)%2===0?'#8B0000':'#2B0000';
+        ctx.fillRect(j*cellSize,i*cellSize,cellSize,cellSize);
+        ctx.strokeStyle='#f30';ctx.strokeRect(j*cellSize,i*cellSize,cellSize,cellSize);
+        const piece=board[i][j];
+        if(piece){
+            const x=j*cellSize+cellSize/2,y=i*cellSize+cellSize/2,r=cellSize*0.35;
+            ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+            ctx.fillStyle=piece.color==='blue'?'#3399ff':'#ff3333';
+            ctx.fill();ctx.stroke();
+            if(piece.type==='king'){ctx.fillStyle='#ffdd00';ctx.font=`bold ${cellSize*0.4}px monospace`;ctx.fillText('👑',x-8,y+8);}
+            if(selectedRow===i&&selectedCol===j){ctx.beginPath();ctx.arc(x,y,r+5,0,Math.PI*2);ctx.strokeStyle='#ffff00';ctx.lineWidth=3;ctx.stroke();}
+        }
+    }
+}
+function handleCanvasClick(e){
+    if(gameOver||!monTour||waitingCoup)return;
+    const rect=canvas.getBoundingClientRect(),scaleX=canvas.width/rect.width,scaleY=canvas.height/rect.height;
+    let clientX,clientY;
+    if(e.touches){clientX=e.touches[0].clientX;clientY=e.touches[0].clientY;e.preventDefault();}
+    else{clientX=e.clientX;clientY=e.clientY;}
+    const canvasX=(clientX-rect.left)*scaleX,canvasY=(clientY-rect.top)*scaleY;
+    if(canvasX<0||canvasX>canvas.width||canvasY<0||canvasY>canvas.height)return;
+    const col=Math.floor(canvasX/cellSize),row=Math.floor(canvasY/cellSize);
+    if(selectedRow===null){
+        const piece=board[row][col];
+        if(piece&&piece.color===maCouleur){selectedRow=row;selectedCol=col;draw();}
+        return;
+    }
+    const piece=board[selectedRow][selectedCol];
+    if(!piece){selectedRow=null;selectedCol=null;draw();return;}
+    const moves=getAllMoves(maCouleur);
+    const validMove=moves.find(m=>m.fromRow===selectedRow&&m.fromCol===selectedCol&&m.toRow===row&&m.toCol===col);
+    if(validMove){
+        const wasCapture=validMove.isCapture;
+        applyMove(selectedRow,selectedCol,row,col,wasCapture);
+        draw();
+        envoyerCoup({fromRow:selectedRow,fromCol:selectedCol,toRow:row,toCol:col,isCapture:wasCapture});
+        selectedRow=null;selectedCol=null;
+        monTour=false;
+        document.getElementById('gameStatus').innerHTML='🔴 ATTENTE ADVERSAIRE';
+        document.getElementById('turnIndicator').className='turn turn-red';
+        document.getElementById('turnIndicator').innerHTML='🔴 TOUR ADVERSAIRE';
+        let win=checkWin();
+        if(win){
+            gameOver=true;
+            if(win===maCouleur) showModal('🏆 VICTOIRE !', 'Vous avez gagné le duel !', 'success');
+            else showModal('💀 DÉFAITE', 'Vous avez perdu le duel...', 'error');
+        }
+    }else{selectedRow=null;selectedCol=null;draw();}
+}
+async function abandonner(){
+    await fetch('/api/duel/abandonner',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+    location.href='menu.html';
+}
+canvas.addEventListener('click',handleCanvasClick);canvas.addEventListener('touchstart',handleCanvasClick);
+initBoard();draw();setInterval(verifierEtat,2000);
+</script>
+</body>
+</html>

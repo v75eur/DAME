@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Menu</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container">
+    <div class="player"><span class="flag" id="playerFlag">🏳️</span><span id="playerName">Guerrier</span></div>
+    <h2>⚔️ MODE DE JEU ⚔️</h2>
+    <button class="solo" onclick="location.href='difficulte.html'">⚔️ MODE SOLO (VS IA)</button>
+    <button class="duel" onclick="location.href='duel.html'">👥 DUEL EN LIGNE (1v1)</button>
+    <button class="champion" onclick="location.href='classement.html'">🏆 CLASSEMENT MONDIAL</button>
+    <button onclick="deconnexion()">🚪 SE DÉCONNECTER</button>
+</div>
+<button class="btn-son">🔊</button>
+<script src="js/son.js"></script>
+<script>
+document.getElementById('playerName').innerText = localStorage.getItem('pseudo') || 'Guerrier';
+document.getElementById('playerFlag').innerText = localStorage.getItem('flag') || '🏳️';
+function deconnexion() { localStorage.clear(); location.href='index.html'; }
+</script>
+<style>
+.container{background:#111;border:2px solid #f30;border-radius:20px;padding:30px;width:400px;margin:auto;text-align:center}
+button{width:100%;padding:15px;margin:10px 0;background:#c00;color:#fff;border:none;border-radius:10px;cursor:pointer}
+.solo{background:#3399ff}
+.duel{background:#ff6600}
+.champion{background:#ffaa00}
+.player{font-size:20px;margin-bottom:20px;color:#f80}
+.flag{font-size:40px;margin-right:15px}
+h2{color:#f60}
+</style>
+</body>
+</html>
+<!-- Charger les notifications -->
+<script>
+// Fonction pour charger les notifications en arrière-plan
+function chargerNotifications() {
+    let script = document.createElement('script');
+    script.src = 'notification.html';
+    document.head.appendChild(script);
+}
+setTimeout(chargerNotifications, 1000);
+</script>

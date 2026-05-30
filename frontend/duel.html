@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Duel</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container">
+    <h2>⚔️ DUEL MONDIAL ⚔️</h2>
+    
+    <div class="section">
+        <h3>🎮 PARTIE RAPIDE</h3>
+        <button class="creer" onclick="creerPartie()">👑 CRÉER UNE PARTIE</button>
+        <div class="rejoindre">
+            <input type="text" id="codeInput" placeholder="CODE À 6 CARACTÈRES" maxlength="6">
+            <button onclick="rejoindrePartie()">🔗 REJOINDRE</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h3>📧 INVITER UN AMI</h3>
+        <div class="search-container">
+            <input type="text" id="invitePseudo" placeholder="TAPEZ LE PSEUDO DE VOTRE AMI..." autocomplete="off">
+            <div id="searchResults" class="search-results"></div>
+        </div>
+        <button onclick="inviterParPseudo()">📧 INVITER PAR PSEUDO</button>
+        <p style="font-size:11px;color:#888;margin-top:5px;">Les résultats apparaissent automatiquement en tapant</p>
+    </div>
+
+    <div class="section">
+        <h3>🌍 MATCHMAKING</h3>
+        <button class="matchmaking" onclick="matchmakingAleatoire()">🎲 TROUVER UN ADVERSAIRE</button>
+    </div>
+
+    <button onclick="location.href='menu.html'">⬅ RETOUR</button>
+</div>
+<button class="btn-son">🔊</button>
+
+<div id="fullscreenLoader" class="fullscreen-loader">
+    <div class="spinner"></div>
+    <div class="message" id="loaderMessage">Préparation...</div>
+</div>
+
+<div id="modal" class="modal"><div class="modal-content"><div class="modal-icon" id="modalIcon">⚔️</div><div class="modal-title" id="modalTitle">Titre</div><div class="modal-message" id="modalMessage">Message</div><button class="modal-btn" onclick="closeModal()">OK</button></div></div>
+
+<script src="js/son.js"></script>
+<script>
+const modal=document.getElementById('modal');
+const fullscreenLoader=document.getElementById('fullscreenLoader');
+let rechercheTimeout = null;
+let selectedPseudo = null;
+
+function showModal(title,message,type){
+    const icon=document.getElementById('modalIcon');
+    const titleEl=document.getElementById('modalTitle');
+    const msgEl=document.getElementById('modalMessage');
+    modal.className='modal show modal-'+type;
+    icon.innerHTML=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+    titleEl.innerHTML=title;
+    msgEl.innerHTML=message;
+    setTimeout(()=>{if(modal.classList.contains('show'))closeModal();},4000);
+}
+function closeModal(){modal.classList.remove('show');}
+function showLoader(msg){document.getElementById('loaderMessage').innerHTML=msg;fullscreenLoader.classList.add('show');}
+function hideLoader(){fullscreenLoader.classList.remove('show');}
+
+// ========== RECHERCHE DYNAMIQUE ==========
+const searchInput = document.getElementById('invitePseudo');
+const searchResults = document.getElementById('searchResults');
+
+async function rechercherPseudos() {
+    let filtre = searchInput.value;
+    if (filtre.length < 1) {
+        searchResults.style.display = 'none';
+        return;
+    }
+    
+    let res = await fetch('/api/rechercher-pseudos/' + encodeURIComponent(filtre));
+    let data = await res.json();
+    
+    if (data.length === 0) {
+        searchResults.style.display = 'none';
+        return;
+    }
+    
+    searchResults.innerHTML = '';
+    data.forEach(p => {
+        let div = document.createElement('div');
+        div.className = 'search-result-item';
+        div.innerHTML = `${p.flag || '🏳️'} <strong>${p.pseudo}</strong>`;
+        div.onclick = () => {
+            searchInput.value = p.pseudo;
+            selectedPseudo = p.pseudo;
+            searchResults.style.display = 'none';
+        };
+        searchResults.appendChild(div);
+    });
+    searchResults.style.display = 'block';
+}
+
+searchInput.addEventListener('input', () => {
+    if (rechercheTimeout) clearTimeout(rechercheTimeout);
+    rechercheTimeout = setTimeout(rechercherPseudos, 300);
+});
+
+document.addEventListener('click', function(e) {
+    if (e.target !== searchInput) {
+        searchResults.style.display = 'none';
+    }
+});
+
+// ========== FONCTIONS DU DUEL ==========
+async function creerPartie() {
+    let pseudo = localStorage.getItem('pseudo');
+    let flag = localStorage.getItem('flag');
+    if (!pseudo) { showModal('⚠️ CONNEXION REQUISE', 'Veuillez vous connecter', 'error'); setTimeout(()=>{location.href='index.html';},1500); return; }
+    showLoader('Création de la partie...');
+    let res = await fetch('/api/duel/creer', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({pseudo, flag}) });
+    let data = await res.json();
+    hideLoader();
+    if (data.ok) {
+        localStorage.setItem('duelCode', data.code);
+        localStorage.setItem('duelRole', 'createur');
+        showModal('✅ PARTIE CRÉÉE !', `Code: ${data.code}`, 'success');
+        setTimeout(()=>{location.href = 'attente-duel.html';},2000);
+    } else { showModal('❌ ERREUR', 'Impossible de créer la partie', 'error'); }
+}
+
+async function rejoindrePartie() {
+    let code = document.getElementById('codeInput').value.toUpperCase();
+    let pseudo = localStorage.getItem('pseudo');
+    let flag = localStorage.getItem('flag');
+    if (!pseudo) { showModal('⚠️ CONNEXION REQUISE', 'Veuillez vous connecter', 'error'); setTimeout(()=>{location.href='index.html';},1500); return; }
+    if (!code || code.length !== 6) { showModal('⚠️ CODE INVALIDE', 'Le code doit contenir 6 caractères', 'error'); return; }
+    showLoader('Rejoindre la partie...');
+    let res = await fetch('/api/duel/rejoindre', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({code, pseudo, flag}) });
+    let data = await res.json();
+    hideLoader();
+    if (data.ok) {
+        localStorage.setItem('duelCode', code);
+        localStorage.setItem('duelRole', 'invite');
+        location.href = 'attente-duel.html';
+    } else { showModal('❌ ERREUR', data.msg, 'error'); }
+}
+
+async function matchmakingAleatoire() {
+    let pseudo = localStorage.getItem('pseudo');
+    let flag = localStorage.getItem('flag');
+    if (!pseudo) { showModal('⚠️ CONNEXION REQUISE', 'Veuillez vous connecter', 'error'); setTimeout(()=>{location.href='index.html';},1500); return; }
+    showLoader('Recherche d\'un adversaire...');
+    let res = await fetch('/api/duel/matchmaking', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({pseudo, flag}) });
+    let data = await res.json();
+    hideLoader();
+    if (data.ok) {
+        localStorage.setItem('duelCode', data.code);
+        localStorage.setItem('duelRole', data.role);
+        location.href = 'attente-duel.html';
+    } else { showModal('❌ ERREUR', 'Erreur de matchmaking', 'error'); }
+}
+
+async function inviterParPseudo() {
+    let inviteurPseudo = localStorage.getItem('pseudo');
+    let inviteurFlag = localStorage.getItem('flag');
+    let invitePseudo = searchInput.value;
+    
+    if (!inviteurPseudo) { showModal('⚠️ CONNEXION REQUISE', 'Veuillez vous connecter', 'error'); setTimeout(()=>{location.href='index.html';},1500); return; }
+    if (!invitePseudo) { showModal('⚠️ PSEUDO REQUIS', 'Sélectionnez un pseudo dans la liste', 'error'); return; }
+    
+    showLoader('Envoi de l\'invitation...');
+    let res = await fetch('/api/duel/inviter-par-pseudo', { 
+        method: 'POST', 
+        headers: {'Content-Type':'application/json'}, 
+        body: JSON.stringify({inviteurPseudo, inviteurFlag, invitePseudo}) 
+    });
+    let data = await res.json();
+    hideLoader();
+    
+    if (data.ok) {
+        localStorage.setItem('duelCode', data.code);
+        localStorage.setItem('duelRole', 'createur');
+        showModal('✅ INVITATION ENVOYÉE !', data.msg, 'success');
+        setTimeout(()=>{location.href = 'attente-duel.html';},2000);
+    } else { showModal('❌ ERREUR', data.msg, 'error'); }
+}
+</script>
+<style>
+.container{background:#111;border:2px solid #f30;border-radius:20px;padding:30px;width:450px;margin:auto;text-align:center}
+.section{margin:20px 0;padding:15px;background:#1a1a1a;border-radius:15px}
+.section h3{color:#f80;font-size:14px;margin-bottom:10px}
+button{width:100%;padding:15px;margin:10px 0;background:#c00;color:#fff;border:none;border-radius:10px;cursor:pointer}
+.creer{background:#3399ff}
+.matchmaking{background:#33cc33}
+.rejoindre input{width:100%;padding:10px;margin:10px 0;background:#222;color:#f80;border:1px solid #f30;border-radius:5px;text-align:center;font-size:18px;letter-spacing:4px}
+input{width:100%;padding:10px;margin:5px 0;background:#222;color:#f80;border:1px solid #f30;border-radius:5px}
+h2{color:#f60}
+
+/* STYLES POUR LA RECHERCHE DYNAMIQUE */
+.search-container {
+    position: relative;
+}
+.search-results {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #222;
+    border: 1px solid #f30;
+    border-radius: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    margin-top: 2px;
+}
+.search-result-item {
+    padding: 10px;
+    cursor: pointer;
+    color: #f80;
+    border-bottom: 1px solid #333;
+    text-align: left;
+}
+.search-result-item:hover {
+    background: #c00;
+    color: #fff;
+}
+</style>
+</body>
+</html>

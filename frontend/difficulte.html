@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Difficulté</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container">
+    <h2>⚔️ CHOISIS TA DIFFICULTÉ ⚔️</h2>
+    <button class="easy" onclick="start(15, 'FACILE')">🍃 FACILE - 15s/coup</button>
+    <button class="medium" onclick="start(10, 'MOYEN')">⚡ MOYEN - 10s/coup</button>
+    <button class="hard" onclick="start(5, 'DIFFICILE')">🔥 DIFFICILE - 5s/coup</button>
+    <button onclick="location.href='menu.html'">⬅ RETOUR</button>
+</div>
+<button class="btn-son">🔊</button>
+<script src="js/son.js"></script>
+<script>
+function start(sec, nom) {
+    localStorage.setItem('difficulty', sec);
+    localStorage.setItem('difficultyName', nom);
+    location.href = 'jeu.html';
+}
+</script>
+<style>
+.container{background:#111;border:2px solid #f30;border-radius:20px;padding:30px;width:400px;margin:auto;text-align:center}
+button{width:100%;padding:15px;margin:10px 0;background:#c00;color:#fff;border:none;border-radius:10px;cursor:pointer}
+.easy{background:#2a5a2a}
+.medium{background:#aa6600}
+.hard{background:#aa3333}
+h2{color:#f60}
+</style>
+</body>
+</html>

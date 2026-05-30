@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Classement</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container">
+    <h1>🏆 CLASSEMENT MONDIAL 🏆</h1>
+    <div id="liste">Chargement...</div>
+    <button onclick="location.href='menu.html'">⬅ RETOUR</button>
+</div>
+<button class="btn-son">🔊</button>
+<script src="js/son.js"></script>
+<script>
+async function charger() {
+    let res = await fetch('/api/classement');
+    let data = await res.json();
+    let html = '<table><tr><th>#</th><th>Drapeau</th><th>Pseudo</th><th>Points</th><th>V</th><th>D</th></tr>';
+    data.forEach((j,i) => {
+        html += `<tr><td class="rank">${i+1}</td><td class="flag">${j.flag||'🏳️'}</td><td class="pseudo">${j.pseudo}</td><td class="pts">${j.points}</td><td>${j.victoires||0}</td><td>${j.defaites||0}</td></tr>`;
+    });
+    html += '</table>';
+    document.getElementById('liste').innerHTML = html;
+}
+charger();
+setInterval(charger, 30000);
+</script>
+<style>
+.container{background:#111;border:2px solid #f30;border-radius:20px;padding:30px;width:700px;margin:auto;text-align:center}
+table{width:100%;margin-top:20px;border-collapse:collapse;color:#f80}
+th,td{padding:10px;border-bottom:1px solid #f30}
+th{color:#f60}
+.rank,.pts{color:#ff0;font-weight:bold}
+.flag{font-size:20px}
+.pseudo{text-align:left}
+h1{color:#f60}
+button{margin-top:20px;padding:10px 20px;background:#c00;color:#fff;border:none;border-radius:10px;cursor:pointer}
+@media (max-width:600px){.container{width:95%;padding:15px}th,td{padding:5px;font-size:11px}}
+</style>
+</body>
+</html>

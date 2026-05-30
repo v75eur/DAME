@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Notifications</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div id="notificationContainer" style="position:fixed;top:20px;right:20px;z-index:20000;display:flex;flex-direction:column;gap:10px;"></div>
+<script src="js/son.js"></script>
+<script>
+let dernieresInvitations = [];
+
+async function verifierInvitations() {
+    let pseudo = localStorage.getItem('pseudo');
+    if (!pseudo) return;
+    
+    let res = await fetch('/api/duel/mes-invitations/' + pseudo);
+    let data = await res.json();
+    
+    if (data.invitations && data.invitations.length > 0) {
+        for (let inv of data.invitations) {
+            if (!dernieresInvitations.includes(inv.id)) {
+                dernieresInvitations.push(inv.id);
+                afficherNotification(inv);
+            }
+        }
+    }
+}
+
+function afficherNotification(inv) {
+    let container = document.getElementById('notificationContainer');
+    let notif = document.createElement('div');
+    notif.className = 'notification notif-attente';
+    notif.style.cssText = `
+        background: linear-gradient(135deg,#0a2a0a,#0a1a0a);
+        border: 2px solid #4f4;
+        border-radius: 15px;
+        padding: 15px 20px;
+        min-width: 280px;
+        animation: slideIn 0.3s ease;
+        box-shadow: 0 0 20px rgba(0,255,0,0.3);
+    `;
+    notif.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:40px;">⚔️</span>
+            <div style="flex:1;">
+                <div style="color:#4f4;font-weight:bold;font-size:16px;">${inv.inviteur} vous invite !</div>
+                <div style="color:#f80;font-size:12px;">Code: ${inv.code}</div>
+            </div>
+            <button onclick="accepterInvitation(${inv.id}, '${inv.code}')" style="background:#4f4;color:#000;border:none;padding:8px 15px;border-radius:10px;cursor:pointer;font-weight:bold;">⚔️ REJOINDRE</button>
+        </div>
+    `;
+    container.appendChild(notif);
+    
+    setTimeout(() => { if(notif.parentNode) notif.remove(); }, 15000);
+}
+
+async function accepterInvitation(id, code) {
+    let pseudo = localStorage.getItem('pseudo');
+    let flag = localStorage.getItem('flag');
+    
+    let res = await fetch('/api/duel/accepter-invitation', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ invitationId: id, pseudo, flag })
+    });
+    let data = await res.json();
+    
+    if (data.ok) {
+        localStorage.setItem('duelCode', data.code);
+        localStorage.setItem('duelRole', 'invite');
+        location.href = 'jeu-duel.html';
+    } else {
+        alert(data.msg);
+    }
+}
+
+// Ajouter le style pour l'animation
+let style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+`;
+document.head.appendChild(style);
+
+// Vérifier les invitations toutes les 3 secondes
+setInterval(verifierInvitations, 3000);
+verifierInvitations();
+</script>
+</body>
+</html>

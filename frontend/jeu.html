@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>DOOM DAME - SOLO</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none}
+body{background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:monospace;overflow:hidden;position:fixed;top:0;left:0;width:100%;height:100%}
+.game-container{background:linear-gradient(45deg,#1a0000,#2a0000);border:2px solid #f30;border-radius:15px;padding:12px;text-align:center;width:95vw;max-width:750px;height:auto;max-height:98vh;display:flex;flex-direction:column}
+h2{color:#f60;margin:0 0 5px;font-size:1.1em}
+.difficulty-badge{background:#000;color:#f80;padding:2px 8px;border-radius:15px;display:inline-block;margin-bottom:5px;font-size:9px;border:1px solid #f60}
+.timer-display{font-size:18px;font-weight:bold;background:#000;display:inline-block;padding:3px 12px;border-radius:8px;margin:5px auto}
+.timer-warning{color:#f00;animation:blink 0.5s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+.board-wrapper{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:nowrap;margin:5px 0}
+.captured-pieces{background:rgba(0,0,0,0.7);border:1px solid #f60;border-radius:8px;padding:5px;min-width:55px;text-align:center}
+.captured-pieces h4{color:#f80;font-size:9px;margin-bottom:3px}
+.captured-red,.captured-blue{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;min-height:25px}
+.captured-piece{width:16px;height:16px;border-radius:50%}
+.captured-piece.red{background:#ff3333;border:1px solid #fff}
+.captured-piece.blue{background:#3399ff;border:1px solid #fff}
+canvas{border:2px solid #f60;background:#1a0a0a;cursor:pointer;display:block;margin:0 auto;width:100%;height:auto;max-width:500px;aspect-ratio:1/1}
+.info-panel{margin-top:8px;display:flex;justify-content:center;gap:12px;color:#f80;flex-wrap:wrap}
+.info-panel div{background:rgba(0,0,0,0.8);padding:3px 8px;border-radius:8px;font-size:10px}
+.status{margin-top:8px;padding:4px;background:#111;border-radius:8px;color:#ffaa44;font-weight:bold;font-size:11px}
+.buttons{margin-top:8px;display:flex;justify-content:center;gap:6px;flex-wrap:wrap}
+button{padding:4px 10px;background:#c00;color:#fff;border:none;cursor:pointer;font-weight:bold;border-radius:8px;font-size:10px}
+.btn-son{position:fixed;bottom:10px;right:10px;width:40px;height:40px;border-radius:50%;background:#c00;font-size:16px}
+.modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:1000;justify-content:center;align-items:center}
+.modal.show{display:flex}
+.modal-content{background:linear-gradient(135deg,#1a0000,#2a0000);border:2px solid #f30;border-radius:20px;padding:20px;text-align:center;max-width:300px;width:85%}
+.modal-icon{font-size:45px;margin-bottom:10px}
+.modal-title{font-size:20px;font-weight:bold;margin-bottom:8px}
+.modal-victory .modal-title{color:#ffd700}
+.modal-defeat .modal-title{color:#f44}
+.modal-message{color:#f80;margin-bottom:15px;font-size:12px}
+.modal-submessage{color:#aaa;font-size:11px;margin-bottom:15px}
+.modal-btn{background:linear-gradient(45deg,#c00,#600);color:#fff;border:none;padding:8px 20px;border-radius:8px;font-size:14px;cursor:pointer;margin:3px}
+.modal-restart{background:linear-gradient(45deg,#360,#030)}
+</style>
+</head>
+<body>
+<div class="game-container">
+    <h2>⚔️ DOOM DAME ⚔️</h2>
+    <div class="difficulty-badge" id="difficultyBadge">Niveau: --</div>
+    <div class="timer-display" id="timerDisplay">⏱️ ∞</div>
+    <div class="board-wrapper">
+        <div class="captured-pieces"><h4>🔴 CAPTURÉS</h4><div id="capturedRed" class="captured-red"></div></div>
+        <canvas id="boardCanvas" width="500" height="500"></canvas>
+        <div class="captured-pieces"><h4>🔵 CAPTURÉS</h4><div id="capturedBlue" class="captured-blue"></div></div>
+    </div>
+    <div class="info-panel"><div>🔵 <span id="playerName">VOUS</span></div><div>🔴 <span id="aiName">IA</span></div><div>⚡ <span id="maxTimeDisplay">0</span>s</div></div>
+    <div class="status" id="gameStatus">🔵 À vous de jouer</div>
+    <div class="buttons"><button onclick="resetGame()">🔄 NOUVELLE PARTIE</button><button onclick="location.href='difficulte.html'">🎮 CHANGER NIVEAU</button><button onclick="location.href='menu.html'">🏠 MENU</button></div>
+</div>
+<button class="btn-son" onclick="toggleSonGlobal()">🔊</button>
+<div id="timeoutModal" class="modal"><div class="modal-content"><div class="modal-icon">⏰</div><div class="modal-title">TEMPS ÉCOULÉ !</div><div class="modal-message">Vous avez dépassé le temps imparti.</div><div class="modal-submessage">L'ordinateur remporte la partie.</div><button class="modal-btn" onclick="closeModalAndReset()">🔄 NOUVELLE PARTIE</button><button class="modal-btn modal-restart" onclick="closeModalAndMenu()">🏠 MENU</button></div></div>
+<div id="victoryModal" class="modal"><div class="modal-content"><div class="modal-icon">🏆</div><div class="modal-title">VICTOIRE !</div><div class="modal-message">Vous avez remporté la partie !</div><div class="modal-submessage">+10 points</div><button class="modal-btn" onclick="closeVictoryModal()">🔄 NOUVELLE PARTIE</button><button class="modal-btn modal-restart" onclick="closeVictoryModalAndMenu()">🏠 MENU</button></div></div>
+<div id="defeatModal" class="modal"><div class="modal-content"><div class="modal-icon">💀</div><div class="modal-title">DÉFAITE...</div><div class="modal-message">L'ordinateur a gagné.</div><div class="modal-submessage">-5 points</div><button class="modal-btn" onclick="closeDefeatModal()">🔄 NOUVELLE PARTIE</button><button class="modal-btn modal-restart" onclick="closeDefeatModalAndMenu()">🏠 MENU</button></div></div>
+<script src="js/son.js"></script>
+<script>
+const timeoutModal=document.getElementById('timeoutModal');
+const victoryModal=document.getElementById('victoryModal');
+const defeatModal=document.getElementById('defeatModal');
+function showTimeoutModal(){timeoutModal.classList.add('show');}
+function showVictoryModal(){victoryModal.classList.add('show');}
+function showDefeatModal(){defeatModal.classList.add('show');}
+function closeModalAndReset(){timeoutModal.classList.remove('show');resetGame();}
+function closeModalAndMenu(){timeoutModal.classList.remove('show');location.href='menu.html';}
+function closeVictoryModal(){victoryModal.classList.remove('show');resetGame();}
+function closeVictoryModalAndMenu(){victoryModal.classList.remove('show');location.href='menu.html';}
+function closeDefeatModal(){defeatModal.classList.remove('show');resetGame();}
+function closeDefeatModalAndMenu(){defeatModal.classList.remove('show');location.href='menu.html';}
+const maxTime=parseInt(localStorage.getItem('difficulty'))||10;
+const diffName=localStorage.getItem('difficultyName')||'MOYEN';
+document.getElementById('difficultyBadge').innerHTML=`Niveau: ${diffName} | ${maxTime}s/coup`;
+document.getElementById('maxTimeDisplay').innerHTML=maxTime;
+const playerPseudo=localStorage.getItem('pseudo')||'Guerrier';
+const playerFlag=localStorage.getItem('flag')||'🏳️';
+document.getElementById('playerName').innerHTML=`${playerFlag} ${playerPseudo}`;
+const aiNames=['Spectre','Ombre','Foudre','Tempête','Titan'];
+const aiName=aiNames[Math.floor(Math.random()*aiNames.length)];
+document.getElementById('aiName').innerHTML=`🤖 ${aiName}`;
+let board=Array(10).fill().map(()=>Array(10).fill(null));
+let currentPlayer='blue',selectedRow=null,selectedCol=null,gameOver=false,waitingAI=false,firstMoveDone=false,capturedBlue=0,capturedRed=0,timeLeft=maxTime,timerInterval=null;
+const canvas=document.getElementById('boardCanvas'),ctx=canvas.getContext('2d'),cellSize=50;
+function initBoard(){
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++)board[i][j]=null;
+    for(let i=0;i<4;i++)for(let j=0;j<10;j++)if((i+j)%2===1)board[i][j]={type:'pawn',color:'red'};
+    for(let i=6;i<10;i++)for(let j=0;j<10;j++)if((i+j)%2===1)board[i][j]={type:'pawn',color:'blue'};
+    capturedBlue=0;capturedRed=0;updateCaptured();
+}
+function updateCaptured(){
+    const blueDiv=document.getElementById('capturedBlue'),redDiv=document.getElementById('capturedRed');
+    blueDiv.innerHTML='';redDiv.innerHTML='';
+    for(let i=0;i<capturedBlue;i++){let d=document.createElement('div');d.className='captured-piece blue';blueDiv.appendChild(d);}
+    for(let i=0;i<capturedRed;i++){let d=document.createElement('div');d.className='captured-piece red';redDiv.appendChild(d);}
+}
+function startTimer(){
+    if(timerInterval)clearInterval(timerInterval);
+    if(!firstMoveDone){document.getElementById('timerDisplay').innerHTML='⏱️ ∞';return;}
+    timeLeft=maxTime;
+    document.getElementById('timerDisplay').innerHTML=`⏱️ ${timeLeft}s`;
+    timerInterval=setInterval(()=>{
+        if(gameOver)return;
+        if(currentPlayer==='blue'&&firstMoveDone&&!gameOver){
+            timeLeft--;
+            document.getElementById('timerDisplay').innerHTML=`⏱️ ${timeLeft}s`;
+            if(timeLeft<=3)document.getElementById('timerDisplay').classList.add('timer-warning');
+            if(timeLeft<=0){clearInterval(timerInterval);gameOver=true;document.getElementById('gameStatus').innerHTML=`💀 TEMPS ÉCOULÉ - DÉFAITE 💀`;showTimeoutModal();}
+        }
+    },1000);
+}
+function isValidMove(piece,fromRow,fromCol,toRow,toCol){
+    if(toRow<0||toRow>=10||toCol<0||toCol>=10)return false;
+    if(board[toRow][toCol]!==null)return false;
+    const dr=toRow-fromRow,dc=Math.abs(toCol-fromCol);
+    if(piece.type==='pawn'){const dir=piece.color==='blue'?-1:1;return dr===dir&&dc===1;}
+    else return Math.abs(dr)===1&&dc===1;
+}
+function isValidCapture(piece,fromRow,fromCol,toRow,toCol){
+    if(toRow<0||toRow>=10||toCol<0||toCol>=10)return false;
+    if(board[toRow][toCol]!==null)return false;
+    const dr=toRow-fromRow,dc=toCol-fromCol;
+    if(Math.abs(dr)!==Math.abs(dc))return false;
+    const stepRow=Math.sign(dr),stepCol=Math.sign(dc);
+    if(piece.type==='pawn'){
+        const dir=piece.color==='blue'?-2:2;
+        if(dr!==dir||Math.abs(dc)!==2)return false;
+        const midRow=fromRow+stepRow,midCol=fromCol+stepCol,target=board[midRow][midCol];
+        return target&&target.color!==piece.color;
+    }else{
+        let captured=null,r=fromRow+stepRow,c=fromCol+stepCol,steps=Math.abs(dr);
+        for(let s=1;s<steps;s++){
+            if(board[r][c]!==null){
+                if(captured===null&&board[r][c].color!==piece.color)captured={row:r,col:c};
+                else return false;
+            }
+            r+=stepRow;c+=stepCol;
+        }
+        return captured!==null;
+    }
+}
+function getAllMovesHuman(color){
+    let moves=[];
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        const piece=board[i][j];
+        if(piece&&piece.color===color){
+            for(let dr=-10;dr<=10;dr++)for(let dc=-10;dc<=10;dc++){
+                if(dr===0&&dc===0)continue;
+                const ni=i+dr,nj=j+dc;
+                if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidCapture(piece,i,j,ni,nj))moves.push({fromRow:i,fromCol:j,toRow:ni,toCol:nj,isCapture:true});
+            }
+            for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+                if(dr===0||dc===0||Math.abs(dr)!==Math.abs(dc))continue;
+                const ni=i+dr,nj=j+dc;
+                if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidMove(piece,i,j,ni,nj))moves.push({fromRow:i,fromCol:j,toRow:ni,toCol:nj,isCapture:false});
+            }
+        }
+    }
+    return moves;
+}
+function getAllMovesAI(color){
+    let moves=[],hasCapture=false;
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        const piece=board[i][j];
+        if(piece&&piece.color===color){
+            for(let dr=-10;dr<=10;dr++)for(let dc=-10;dc<=10;dc++){
+                if(dr===0&&dc===0)continue;
+                const ni=i+dr,nj=j+dc;
+                if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidCapture(piece,i,j,ni,nj)){moves.push({fromRow:i,fromCol:j,toRow:ni,toCol:nj,isCapture:true});hasCapture=true;}
+            }
+        }
+    }
+    if(hasCapture)return moves;
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        const piece=board[i][j];
+        if(piece&&piece.color===color){
+            for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+                if(dr===0||dc===0||Math.abs(dr)!==Math.abs(dc))continue;
+                const ni=i+dr,nj=j+dc;
+                if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidMove(piece,i,j,ni,nj))moves.push({fromRow:i,fromCol:j,toRow:ni,toCol:nj,isCapture:false});
+            }
+        }
+    }
+    return moves;
+}
+function applyMove(fromRow,fromCol,toRow,toCol,isCapture){
+    const piece={...board[fromRow][fromCol]};
+    if(isCapture){
+        const dr=toRow-fromRow,dc=toCol-fromCol,stepRow=Math.sign(dr),stepCol=Math.sign(dc);
+        let r=fromRow+stepRow,c=fromCol+stepCol;
+        while(r!==toRow||c!==toCol){
+            if(board[r][c]&&board[r][c].color!==piece.color){
+                if(piece.color==='blue')capturedRed++;else capturedBlue++;
+                board[r][c]=null;updateCaptured();break;
+            }
+            r+=stepRow;c+=stepCol;
+        }
+    }
+    board[toRow][toCol]=piece;board[fromRow][fromCol]=null;
+    if((piece.color==='blue'&&toRow===0)||(piece.color==='red'&&toRow===9))board[toRow][toCol].type='king';
+}
+function canCaptureAgain(row,col){
+    const piece=board[row][col];
+    if(!piece)return false;
+    for(let dr=-10;dr<=10;dr++)for(let dc=-10;dc<=10;dc++){
+        if(dr===0&&dc===0)continue;
+        const ni=row+dr,nj=col+dc;
+        if(ni>=0&&ni<10&&nj>=0&&nj<10&&isValidCapture(piece,row,col,ni,nj))return true;
+    }
+    return false;
+}
+function checkWin(){
+    let blueCount=0,redCount=0;
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        if(board[i][j]&&board[i][j].color==='blue')blueCount++;
+        if(board[i][j]&&board[i][j].color==='red')redCount++;
+    }
+    if(blueCount===0)return'red';
+    if(redCount===0)return'blue';
+    return null;
+}
+async function updateScore(victory){
+    try{
+        await fetch('/api/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pseudo:playerPseudo,victoire:victory})});
+    }catch(e){}
+}
+async function aiPlay(){
+    if(gameOver||currentPlayer!=='red'||waitingAI)return;
+    waitingAI=true;
+    await new Promise(r=>setTimeout(r,300));
+    const moves=getAllMovesAI('red');
+    if(moves.length===0){gameOver=true;showVictoryModal();updateScore(true);waitingAI=false;draw();return;}
+    const chosen=moves[0];
+    applyMove(chosen.fromRow,chosen.fromCol,chosen.toRow,chosen.toCol,chosen.isCapture);
+    draw();
+    if(chosen.isCapture&&canCaptureAgain(chosen.toRow,chosen.toCol)){waitingAI=false;aiPlay();return;}
+    const win=checkWin();
+    if(win){gameOver=true;if(win==='blue'){showVictoryModal();updateScore(true);}else{showDefeatModal();updateScore(false);}waitingAI=false;return;}
+    currentPlayer='blue';document.getElementById('gameStatus').innerHTML='🔵 À vous de jouer';waitingAI=false;startTimer();draw();
+}
+function draw(){
+    for(let i=0;i<10;i++)for(let j=0;j<10;j++){
+        ctx.fillStyle=(i+j)%2===0?'#8B0000':'#2B0000';
+        ctx.fillRect(j*cellSize,i*cellSize,cellSize,cellSize);
+        ctx.strokeStyle='#f30';ctx.strokeRect(j*cellSize,i*cellSize,cellSize,cellSize);
+        const piece=board[i][j];
+        if(piece){
+            const x=j*cellSize+cellSize/2,y=i*cellSize+cellSize/2,r=cellSize*0.35;
+            ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+            ctx.fillStyle=piece.color==='blue'?'#3399ff':'#ff3333';
+            ctx.fill();ctx.stroke();
+            if(piece.type==='king'){ctx.fillStyle='#ffdd00';ctx.font=`bold ${cellSize*0.4}px monospace`;ctx.fillText('👑',x-8,y+8);}
+            if(selectedRow===i&&selectedCol===j){ctx.beginPath();ctx.arc(x,y,r+5,0,Math.PI*2);ctx.strokeStyle='#ffff00';ctx.lineWidth=3;ctx.stroke();}
+        }
+    }
+}
+function handleCanvasClick(e){
+    if(gameOver||currentPlayer!=='blue'||waitingAI)return;
+    const rect=canvas.getBoundingClientRect(),scaleX=canvas.width/rect.width,scaleY=canvas.height/rect.height;
+    let clientX,clientY;
+    if(e.touches){clientX=e.touches[0].clientX;clientY=e.touches[0].clientY;e.preventDefault();}
+    else{clientX=e.clientX;clientY=e.clientY;}
+    const canvasX=(clientX-rect.left)*scaleX,canvasY=(clientY-rect.top)*scaleY;
+    if(canvasX<0||canvasX>canvas.width||canvasY<0||canvasY>canvas.height)return;
+    const col=Math.floor(canvasX/cellSize),row=Math.floor(canvasY/cellSize);
+    if(selectedRow===null){
+        const piece=board[row][col];
+        if(piece&&piece.color==='blue'){selectedRow=row;selectedCol=col;draw();}
+        return;
+    }
+    const piece=board[selectedRow][selectedCol];
+    if(!piece){selectedRow=null;selectedCol=null;draw();return;}
+    const moves=getAllMovesHuman('blue');
+    const validMove=moves.find(m=>m.fromRow===selectedRow&&m.fromCol===selectedCol&&m.toRow===row&&m.toCol===col);
+    if(validMove){
+        const wasCapture=validMove.isCapture;
+        applyMove(selectedRow,selectedCol,row,col,wasCapture);
+        selectedRow=null;selectedCol=null;draw();
+        if(!firstMoveDone){firstMoveDone=true;startTimer();}
+        if(wasCapture&&canCaptureAgain(row,col)){document.getElementById('gameStatus').innerHTML='🔵 PRISE MULTIPLE ! Rejouez';return;}
+        const win=checkWin();
+        if(win){gameOver=true;if(win==='blue'){showVictoryModal();updateScore(true);}else{showDefeatModal();updateScore(false);}return;}
+        currentPlayer='red';document.getElementById('gameStatus').innerHTML='🔴 L\'IA réfléchit...';draw();aiPlay();
+    }else{selectedRow=null;selectedCol=null;draw();}
+}
+function resetGame(){
+    if(timerInterval)clearInterval(timerInterval);
+    initBoard();currentPlayer='blue';selectedRow=null;selectedCol=null;gameOver=false;waitingAI=false;firstMoveDone=false;
+    draw();document.getElementById('gameStatus').innerHTML='🔵 À vous de jouer';document.getElementById('timerDisplay').innerHTML='⏱️ ∞';document.getElementById('timerDisplay').classList.remove('timer-warning');
+}
+canvas.addEventListener('click',handleCanvasClick);canvas.addEventListener('touchstart',handleCanvasClick);
+initBoard();draw();
+</script>
+</body>
+</html>

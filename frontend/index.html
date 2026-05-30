@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>DOOM DAME</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div id="splash" onclick="entrer()"><h1>⚔️ DOOM DAME ⚔️</h1><p>🔥 CLIQUE POUR ENTRER 🔥</p></div>
+<div id="accueil" style="display:none">
+<div class="centre"><h1>⚔️ DOOM DAME ⚔️</h1>
+<div class="box"><input type="text" id="pseudo" placeholder="PSEUDO"><br>
+<input type="password" id="mdp" placeholder="CODE"><br>
+<button id="connexionBtn" onclick="connexion()">⚡ CONNEXION</button>
+<button onclick="location.href='inscription.html'">📝 INSCRIPTION</button>
+<button onclick="location.href='forgot.html'">🔐 MDP OUBLIÉ</button>
+</div></div></div>
+<button class="btn-son">🔊</button>
+
+<div id="fullscreenLoader" class="fullscreen-loader">
+    <div class="spinner"></div>
+    <div class="message" id="loaderMessage">Connexion en cours...</div>
+</div>
+
+<div id="modal" class="modal"><div class="modal-content"><div class="modal-icon" id="modalIcon">⚔️</div><div class="modal-title" id="modalTitle">Titre</div><div class="modal-message" id="modalMessage">Message</div><button class="modal-btn" onclick="closeModal()">OK</button></div></div>
+<script src="js/son.js"></script>
+<script>
+const modal=document.getElementById('modal');
+const fullscreenLoader=document.getElementById('fullscreenLoader');
+function showModal(title,message,type){
+    const icon=document.getElementById('modalIcon');
+    const titleEl=document.getElementById('modalTitle');
+    const msgEl=document.getElementById('modalMessage');
+    modal.className='modal show modal-'+type;
+    icon.innerHTML=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+    titleEl.innerHTML=title;
+    msgEl.innerHTML=message;
+    setTimeout(()=>{if(modal.classList.contains('show'))closeModal();},4000);
+}
+function closeModal(){modal.classList.remove('show');}
+function showLoader(msg){document.getElementById('loaderMessage').innerHTML=msg;fullscreenLoader.classList.add('show');}
+function hideLoader(){fullscreenLoader.classList.remove('show');}
+
+function entrer(){document.getElementById('splash').style.display='none';document.getElementById('accueil').style.display='flex';}
+async function connexion(){
+    let pseudo=document.getElementById('pseudo').value,mdp=document.getElementById('mdp').value;
+    if(!pseudo||!mdp){showModal('⚠️ CHAMPS MANQUANTS','Veuillez remplir tous les champs','error');return;}
+    showLoader('Connexion en cours...');
+    let rep=await fetch('/api/connexion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pseudo,mdp})});
+    let data=await rep.json();
+    hideLoader();
+    if(data.ok){
+        localStorage.setItem('pseudo',pseudo);localStorage.setItem('flag',data.flag);
+        showModal('⚔️ CONNEXION RÉUSSIE','Bienvenue '+pseudo+' !','success');
+        setTimeout(()=>{location.href='menu.html';},1500);
+    }else{showModal('❌ ÉCHEC CONNEXION',data.msg,'error');}
+}
+</script>
+<style>.centre,.splash{text-align:center;background:#111;border:2px solid #f30;border-radius:20px;padding:30px;margin:20px}
+input,button{padding:10px;margin:5px;background:#222;color:#f80;border:1px solid #f30;border-radius:5px}
+button{background:#c00;color:#fff;cursor:pointer}h1{color:#f60}</style>
+</body>
+</html>
+<!-- Notifications en temps réel -->
+<script src="notification.html" type="text/html"></script>

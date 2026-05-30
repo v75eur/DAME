@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Inscription</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container"><h1>📝 INSCRIPTION</h1>
+<div id="flagPreview">🏳️</div>
+<select id="paysSelect"></select>
+<input type="text" id="pseudo" placeholder="PSEUDO (3-20)"><br>
+<input type="email" id="email" placeholder="EMAIL"><br>
+<input type="password" id="mdp" placeholder="MOT DE PASSE"><br>
+<input type="password" id="mdp2" placeholder="CONFIRMER"><br>
+<button id="inscrireBtn" onclick="inscription()">✅ S'INSCRIRE</button>
+<button onclick="location.href='index.html'">⬅ RETOUR</button>
+</div>
+<button class="btn-son">🔊</button>
+
+<!-- FULLSCREEN LOADER -->
+<div id="fullscreenLoader" class="fullscreen-loader">
+    <div class="spinner"></div>
+    <div class="message" id="loaderMessage">Création du compte...</div>
+</div>
+
+<div id="modal" class="modal"><div class="modal-content"><div class="modal-icon" id="modalIcon">⚔️</div><div class="modal-title" id="modalTitle">Titre</div><div class="modal-message" id="modalMessage">Message</div><button class="modal-btn" onclick="closeModal()">OK</button></div></div>
+<script src="js/son.js"></script>
+<script>
+const modal=document.getElementById('modal');
+const fullscreenLoader=document.getElementById('fullscreenLoader');
+function showModal(title,message,type){
+    const icon=document.getElementById('modalIcon');
+    const titleEl=document.getElementById('modalTitle');
+    const msgEl=document.getElementById('modalMessage');
+    modal.className='modal show modal-'+type;
+    icon.innerHTML=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+    titleEl.innerHTML=title;
+    msgEl.innerHTML=message;
+    setTimeout(()=>{if(modal.classList.contains('show'))closeModal();},4000);
+}
+function closeModal(){modal.classList.remove('show');}
+function showLoader(msg){document.getElementById('loaderMessage').innerHTML=msg;fullscreenLoader.classList.add('show');}
+function hideLoader(){fullscreenLoader.classList.remove('show');}
+
+let paysList=[];
+async function chargerPays(){
+    let res=await fetch('/api/pays');
+    paysList=await res.json();
+    let select=document.getElementById('paysSelect');
+    select.innerHTML='';
+    paysList.forEach(p=>{let opt=document.createElement('option');opt.value=JSON.stringify({code:p.code,nom:p.nom});opt.innerHTML=`${p.code} ${p.nom}`;select.appendChild(opt);});
+    select.onchange=()=>{let val=JSON.parse(select.value);document.getElementById('flagPreview').innerHTML=val.code;};
+    document.getElementById('flagPreview').innerHTML=paysList[0].code;
+}
+async function inscription(){
+    let pseudo=document.getElementById('pseudo').value,email=document.getElementById('email').value,mdp=document.getElementById('mdp').value,mdp2=document.getElementById('mdp2').value,paysData=JSON.parse(document.getElementById('paysSelect').value);
+    if(!pseudo||!email||!mdp){showModal('⚠️ CHAMPS MANQUANTS','Veuillez remplir tous les champs','error');return;}
+    if(pseudo.length<3){showModal('⚠️ PSEUDO INVALIDE','Le pseudo doit contenir au moins 3 caractères','error');return;}
+    if(!email.includes('@')){showModal('⚠️ EMAIL INVALIDE','Veuillez entrer un email valide','error');return;}
+    if(mdp.length<4){showModal('⚠️ MOT DE PASSE TROP COURT','Minimum 4 caractères','error');return;}
+    if(mdp!==mdp2){showModal('⚠️ MOT DE PASSE DIFFÉRENT','Les mots de passe ne correspondent pas','error');return;}
+    
+    showLoader('Création du compte et envoi du code...');
+    let res=await fetch('/api/inscription',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pseudo,email,mdp,flag:paysData.code,pays:paysData.nom})});
+    let data=await res.json();
+    hideLoader();
+    if(data.ok){
+        showModal('✅ COMPTE CRÉÉ !',`Un code a été envoyé à ${email}. Vérifiez vos spams.`,'success');
+        setTimeout(()=>{location.href='verify.html?email='+email;},2500);
+    }else{showModal('❌ ERREUR',data.msg,'error');}
+}
+chargerPays();
+</script>
+<style>
+.container{background:#111;border:2px solid #f30;border-radius:20px;padding:30px;width:450px;margin:auto;text-align:center}
+input,select,button{width:100%;padding:10px;margin:5px 0;background:#222;color:#f80;border:1px solid #f30;border-radius:5px}
+button{background:#c00;color:#fff;cursor:pointer}#flagPreview{font-size:50px;margin:10px}h1{color:#f60}
+</style>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>MDP oublié</title><link rel="stylesheet" href="css/style.css"></head>
+<body>
+<div class="container">
+    <h1>🔐 MDP OUBLIÉ</h1>
+    <div id="step1">
+        <input type="email" id="email" placeholder="VOTRE EMAIL">
+        <button id="sendCodeBtn" onclick="demanderCode()">📧 ENVOYER LE CODE</button>
+        <button onclick="location.href='index.html'">⬅ RETOUR</button>
+    </div>
+    <div id="step2" style="display:none">
+        <input type="text" id="code" placeholder="CODE 6 CHIFFRES">
+        <input type="password" id="newMdp" placeholder="NOUVEAU MDP (min 4)">
+        <input type="password" id="confirmMdp" placeholder="CONFIRMER">
+        <button id="resetBtn" onclick="reinitialiser()">✅ CHANGER</button>
+        <button onclick="location.href='index.html'">⬅ CONNEXION</button>
+    </div>
+</div>
+<button class="btn-son">🔊</button>
+
+<div id="fullscreenLoader" class="fullscreen-loader">
+    <div class="spinner"></div>
+    <div class="message" id="loaderMessage">Envoi du code...</div>
+</div>
+
+<div id="modal" class="modal"><div class="modal-content"><div class="modal-icon" id="modalIcon">⚔️</div><div class="modal-title" id="modalTitle">Titre</div><div class="modal-message" id="modalMessage">Message</div><button class="modal-btn" onclick="closeModal()">OK</button></div></div>
+<script src="js/son.js"></script>
+<script>
+const modal=document.getElementById('modal');
+const fullscreenLoader=document.getElementById('fullscreenLoader');
+function showModal(title,message,type){
+    const icon=document.getElementById('modalIcon');
+    const titleEl=document.getElementById('modalTitle');
+    const msgEl=document.getElementById('modalMessage');
+    modal.className='modal show modal-'+type;
+    icon.innerHTML=type==='success'?'✅':type==='error'?'❌':'ℹ️';
+    titleEl.innerHTML=title;
+    msgEl.innerHTML=message;
+    setTimeout(()=>{if(modal.classList.contains('show'))closeModal();},4000);
+}
+function closeModal(){modal.classList.remove('show');}
+function showLoader(msg){document.getElementById('loaderMessage').innerHTML=msg;fullscreenLoader.classList.add('show');}
+function hideLoader(){fullscreenLoader.classList.remove('show');}
+
+let emailTemp = '';
+async function demanderCode() {
+    let email = document.getElementById('email').value;
+    if (!email || !email.includes('@')) {
+        showModal('⚠️ EMAIL INVALIDE', 'Veuillez entrer un email valide', 'error');
+        return;
+    }
+    showLoader('Envoi du code de réinitialisation...');
+    let res = await fetch('/api/forgot', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email}) });
+    let data = await res.json();
+    hideLoader();
+    if (data.ok) {
+        emailTemp = email;
+        showModal('✅ CODE ENVOYÉ !', data.msg, 'success');
+        setTimeout(() => {
+            document.getElementById('step1').style.display = 'none';
+            document.getElementById('step2').style.display = 'block';
+            closeModal();
+        }, 2000);
+    } else {
+        showModal('❌ ERREUR', data.msg, 'error');
+    }
+}
+async function reinitialiser() {
+    let code = document.getElementById('code').value;
+    let newMdp = document.getElementById('newMdp').value;
+    let confirm = document.getElementById('confirmMdp').value;
+    if (!code || code.length !== 6) {
+        showModal('⚠️ CODE INVALIDE', 'Code à 6 chiffres requis', 'error');
+        return;
+    }
+    if (newMdp.length < 4) {
+        showModal('⚠️ MDP TROP COURT', 'Minimum 4 caractères', 'error');
+        return;
+    }
+    if (newMdp !== confirm) {
+        showModal('⚠️ MDP DIFFÉRENTS', 'Les mots de passe ne correspondent pas', 'error');
+        return;
+    }
+    showLoader('Réinitialisation du mot de passe...');
+    let res = await fetch('/api/reset', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email: emailTemp, code, newMdp}) });
+    let data = await res.json();
+    hideLoader();
+    if (data.ok) {
+        showModal('✅ MDP MODIFIÉ !', data.msg, 'success');
+        setTimeout(() => { location.href = 'index.html'; }, 2000);
+    } else {
+        showModal('❌ ERREUR', data.msg, 'error');
+    }
+}
+</script>
+<style>
+.container{background:#111;border:2px solid #f30;border-radius:20px;padding:30px;width:400px;margin:auto;text-align:center}
+input,button{width:100%;padding:10px;margin:5px 0;background:#222;color:#f80;border:1px solid #f30;border-radius:5px}
+button{background:#c00;color:#fff;cursor:pointer}h1{color:#f60}
+</style>
+</body>
+</html>
