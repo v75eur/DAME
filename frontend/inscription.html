@@ -14,7 +14,6 @@
 </div>
 <button class="btn-son">🔊</button>
 
-<!-- FULLSCREEN LOADER -->
 <div id="fullscreenLoader" class="fullscreen-loader">
     <div class="spinner"></div>
     <div class="message" id="loaderMessage">Création du compte...</div>
@@ -33,11 +32,16 @@ function showModal(title,message,type){
     icon.innerHTML=type==='success'?'✅':type==='error'?'❌':'ℹ️';
     titleEl.innerHTML=title;
     msgEl.innerHTML=message;
-    setTimeout(()=>{if(modal.classList.contains('show'))closeModal();},4000);
+    setTimeout(()=>{ if(modal.classList.contains('show')) closeModal(); }, 4000);
 }
-function closeModal(){modal.classList.remove('show');}
-function showLoader(msg){document.getElementById('loaderMessage').innerHTML=msg;fullscreenLoader.classList.add('show');}
-function hideLoader(){fullscreenLoader.classList.remove('show');}
+function closeModal(){ modal.classList.remove('show'); }
+function showLoader(msg){ 
+    document.getElementById('loaderMessage').innerHTML = msg; 
+    fullscreenLoader.classList.add('show'); 
+}
+function hideLoader(){ 
+    fullscreenLoader.classList.remove('show'); 
+}
 
 let paysList=[];
 async function chargerPays(){
@@ -45,26 +49,64 @@ async function chargerPays(){
     paysList=await res.json();
     let select=document.getElementById('paysSelect');
     select.innerHTML='';
-    paysList.forEach(p=>{let opt=document.createElement('option');opt.value=JSON.stringify({code:p.code,nom:p.nom});opt.innerHTML=`${p.code} ${p.nom}`;select.appendChild(opt);});
-    select.onchange=()=>{let val=JSON.parse(select.value);document.getElementById('flagPreview').innerHTML=val.code;};
+    paysList.forEach(p=>{
+        let opt=document.createElement('option');
+        opt.value=JSON.stringify({code:p.code,nom:p.nom});
+        opt.innerHTML=`${p.code} ${p.nom}`;
+        select.appendChild(opt);
+    });
+    select.onchange=()=>{
+        let val=JSON.parse(select.value);
+        document.getElementById('flagPreview').innerHTML=val.code;
+    };
     document.getElementById('flagPreview').innerHTML=paysList[0].code;
 }
+
 async function inscription(){
-    let pseudo=document.getElementById('pseudo').value,email=document.getElementById('email').value,mdp=document.getElementById('mdp').value,mdp2=document.getElementById('mdp2').value,paysData=JSON.parse(document.getElementById('paysSelect').value);
-    if(!pseudo||!email||!mdp){showModal('⚠️ CHAMPS MANQUANTS','Veuillez remplir tous les champs','error');return;}
-    if(pseudo.length<3){showModal('⚠️ PSEUDO INVALIDE','Le pseudo doit contenir au moins 3 caractères','error');return;}
-    if(!email.includes('@')){showModal('⚠️ EMAIL INVALIDE','Veuillez entrer un email valide','error');return;}
-    if(mdp.length<4){showModal('⚠️ MOT DE PASSE TROP COURT','Minimum 4 caractères','error');return;}
-    if(mdp!==mdp2){showModal('⚠️ MOT DE PASSE DIFFÉRENT','Les mots de passe ne correspondent pas','error');return;}
+    let pseudo=document.getElementById('pseudo').value;
+    let email=document.getElementById('email').value;
+    let mdp=document.getElementById('mdp').value;
+    let mdp2=document.getElementById('mdp2').value;
+    let paysData=JSON.parse(document.getElementById('paysSelect').value);
     
-    showLoader('Création du compte et envoi du code...');
-    let res=await fetch('/api/inscription',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pseudo,email,mdp,flag:paysData.code,pays:paysData.nom})});
-    let data=await res.json();
-    hideLoader();
+    if(!pseudo || !email || !mdp){
+        showModal('⚠️ CHAMPS MANQUANTS', 'Veuillez remplir tous les champs', 'error');
+        return;
+    }
+    if(pseudo.length<3){
+        showModal('⚠️ PSEUDO INVALIDE', '3 caractères minimum', 'error');
+        return;
+    }
+    if(!email.includes('@')){
+        showModal('⚠️ EMAIL INVALIDE', 'Email valide requis', 'error');
+        return;
+    }
+    if(mdp.length<4){
+        showModal('⚠️ MOT DE PASSE TROP COURT', '4 caractères minimum', 'error');
+        return;
+    }
+    if(mdp !== mdp2){
+        showModal('⚠️ MOT DE PASSE DIFFÉRENT', 'Les mots de passe ne correspondent pas', 'error');
+        return;
+    }
+    
+    showLoader('Création du compte...');
+    
+    let res = await fetch('/api/inscription', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({pseudo, email, mdp, flag:paysData.code, pays:paysData.nom})
+    });
+    let data = await res.json();
+    
+    hideLoader(); // ← Le loader s'arrête ICI
+    
     if(data.ok){
-        showModal('✅ COMPTE CRÉÉ !',`Un code a été envoyé à ${email}. Vérifiez vos spams.`,'success');
-        setTimeout(()=>{location.href='verify.html?email='+email;},2500);
-    }else{showModal('❌ ERREUR',data.msg,'error');}
+        showModal('✅ COMPTE CRÉÉ !', `Code envoyé à ${email}`, 'success');
+        setTimeout(()=>{ location.href='verify.html?email='+email; }, 2000);
+    } else {
+        showModal('❌ ERREUR', data.msg, 'error');
+    }
 }
 chargerPays();
 </script>

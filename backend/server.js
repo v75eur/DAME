@@ -15,21 +15,28 @@ console.log(`🌍 ${pays.length} pays chargés`);
 
 const DATA_FILE = path.join(__dirname, 'players.json');
 let joueurs = [];
-if (fs.existsSync(DATA_FILE)) {
-    try { joueurs = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch(e) {}
-}
+if (fs.existsSync(DATA_FILE)) { try { joueurs = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')); } catch(e) {} }
 function sauvegarde() { fs.writeFileSync(DATA_FILE, JSON.stringify(joueurs, null, 2)); }
 
 let resetCodes = [];
 let verificationCodes = [];
 let duels = [];
+let invitations = [];
 
-// EMAIL avec ton compte Gmail
+// Configuration email - TON COMPTE GMAIL
 const mailer = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: 'ehahounarmelrick@gmail.com', pass: 'rqxirhkkebcafbch' }
 });
 
+// Envoi email asynchrone - NE BLOQUE PAS
+function envoyerEmail(destinataire, sujet, html) {
+    setImmediate(() => {
+        mailer.sendMail({ to: destinataire, subject: sujet, html }).catch(e => console.log('Email erreur:', e.message));
+    });
+}
+
+// ========== ROUTES ==========
 app.get('/api/pays', (req, res) => res.json(pays));
 app.get('/api/stats', (req, res) => res.json({ total: joueurs.length, max: 100 }));
 app.get('/api/classement', (req, res) => {
@@ -37,9 +44,10 @@ app.get('/api/classement', (req, res) => {
     res.json(top.map(j => ({ pseudo: j.pseudo, points: j.points, flag: j.flag, pays: j.pays, victoires: j.victoires||0, defaites: j.defaites||0 })));
 });
 
-// INSCRIPTION AVEC ENVOI DE CODE PAR EMAIL
+// INSCRIPTION - Réponse immédiate
 app.post('/api/inscription', async (req, res) => {
     const { pseudo, email, mdp, flag, pays } = req.body;
+    
     if (!pseudo || !email || !mdp || !flag) return res.json({ ok: false, msg: 'Champs requis' });
     if (pseudo.length < 3) return res.json({ ok: false, msg: 'Pseudo trop court' });
     if (!email.includes('@')) return res.json({ ok: false, msg: 'Email invalide' });
@@ -52,40 +60,31 @@ app.post('/api/inscription', async (req, res) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     verificationCodes.push({ pseudo, email, mdp: hash, flag, pays, code, expires: Date.now() + 3600000 });
     
-    try {
-        await mailer.sendMail({
-            to: email,
-            subject: '🔐 Code de vérification DOOM DAME',
-            html: `<div style="background:#0a0000; color:#f80; padding:20px; text-align:center; font-family:monospace;">
-                <h1 style="color:#f40">⚔️ DOOM DAME ⚔️</h1>
-                <p>Bienvenue <b>${pseudo}</b> !</p>
-                <p>Voici votre code de vérification :</p>
-                <h2 style="color:#f60; font-size:48px; letter-spacing:5px;">${code}</h2>
-                <p>Ce code expire dans 1 heure.</p>
-            </div>`
-        });
-        res.json({ ok: true, msg: 'Code envoyé', email });
-    } catch(e) {
-        res.json({ ok: false, msg: 'Erreur envoi email' });
-    }
+    // Email non bloquant
+    envoyerEmail(email, '🔐 Code DOOM DAME', `
+        <div style="background:#0a0000;color:#f80;padding:20px;text-align:center;font-family:monospace;">
+            <h1 style="color:#f40">⚔️ DOOM DAME ⚔️</h1>
+            <p>Bienvenue <b>${pseudo}</b> !</p>
+            <p>Code: <b style="font-size:32px">${code}</b></p>
+            <p>Valable 1 heure</p>
+        </div>
+    `);
+    
+    // Réponse immédiate
+    res.json({ ok: true, msg: 'Code envoyé', email });
 });
 
-// VÉRIFICATION DU CODE
 app.post('/api/verify', async (req, res) => {
     const { email, code } = req.body;
     const pending = verificationCodes.find(v => v.email === email && v.code === code && v.expires > Date.now());
     if (!pending) return res.json({ ok: false, msg: 'Code invalide ou expiré' });
     
-    joueurs.push({
-        pseudo: pending.pseudo, email: pending.email, mdp: pending.mdp,
-        flag: pending.flag, pays: pending.pays, points: 1000, victoires: 0, defaites: 0
-    });
+    joueurs.push({ pseudo: pending.pseudo, email: pending.email, mdp: pending.mdp, flag: pending.flag, pays: pending.pays, points: 1000, victoires: 0, defaites: 0 });
     sauvegarde();
     verificationCodes = verificationCodes.filter(v => v.email !== email);
     res.json({ ok: true, msg: 'Compte activé ! Connectez-vous.' });
 });
 
-// RENVOYER LE CODE
 app.post('/api/resend-code', (req, res) => {
     const { email } = req.body;
     const pending = verificationCodes.find(v => v.email === email);
@@ -93,11 +92,10 @@ app.post('/api/resend-code', (req, res) => {
     const newCode = Math.floor(100000 + Math.random() * 900000).toString();
     pending.code = newCode;
     pending.expires = Date.now() + 3600000;
-    mailer.sendMail({ to: email, subject: 'Nouveau code DOOM DAME', html: `<h1>Nouveau code: ${newCode}</h1>` }).catch(()=>{});
+    envoyerEmail(email, 'Nouveau code DOOM DAME', `<h1>Nouveau code: ${newCode}</h1>`);
     res.json({ ok: true, msg: 'Nouveau code envoyé' });
 });
 
-// CONNEXION
 app.post('/api/connexion', async (req, res) => {
     const { pseudo, mdp } = req.body;
     const user = joueurs.find(j => j.pseudo === pseudo);
@@ -106,18 +104,16 @@ app.post('/api/connexion', async (req, res) => {
     res.json({ ok: true, pseudo: user.pseudo, flag: user.flag });
 });
 
-// MOT DE PASSE OUBLIÉ
 app.post('/api/forgot', async (req, res) => {
     const { email } = req.body;
     const user = joueurs.find(j => j.email === email);
     if (!user) return res.json({ ok: false, msg: 'Email inconnu' });
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     resetCodes.push({ email, code, expires: Date.now() + 900000 });
-    mailer.sendMail({ to: email, subject: 'Réinitialisation mot de passe', html: `<h1>Code: ${code}</h1><p>Valable 15 minutes.</p>` }).catch(()=>{});
+    envoyerEmail(email, 'Réinitialisation mot de passe', `<h1>Code: ${code}</h1><p>Valable 15 minutes.</p>`);
     res.json({ ok: true, msg: 'Code envoyé' });
 });
 
-// RÉINITIALISATION MDP
 app.post('/api/reset', async (req, res) => {
     const { email, code, newMdp } = req.body;
     const reset = resetCodes.find(r => r.email === email && r.code === code && r.expires > Date.now());
@@ -125,10 +121,9 @@ app.post('/api/reset', async (req, res) => {
     const user = joueurs.find(j => j.email === email);
     if (user) user.mdp = await bcrypt.hash(newMdp, 10);
     sauvegarde();
-    res.json({ ok: true, msg: 'Mot de passe modifié ! Connectez-vous.' });
+    res.json({ ok: true, msg: 'Mot de passe modifié !' });
 });
 
-// MISE À JOUR SCORE
 app.post('/api/score', (req, res) => {
     const { pseudo, victoire } = req.body;
     const user = joueurs.find(j => j.pseudo === pseudo);
@@ -140,6 +135,14 @@ app.post('/api/score', (req, res) => {
 });
 
 // ========== MODE DUEL ==========
+app.get('/api/pseudos', (req, res) => res.json(joueurs.map(j => ({ pseudo: j.pseudo, flag: j.flag }))));
+app.get('/api/rechercher-pseudos/:filtre', (req, res) => {
+    const filtre = req.params.filtre.toLowerCase();
+    if (filtre.length < 1) { res.json([]); return; }
+    const resultats = joueurs.filter(j => j.pseudo.toLowerCase().includes(filtre)).slice(0, 10);
+    res.json(resultats.map(j => ({ pseudo: j.pseudo, flag: j.flag })));
+});
+
 app.post('/api/duel/creer', (req, res) => {
     const { pseudo, flag } = req.body;
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -202,144 +205,34 @@ app.get('/api/duel/stats', (req, res) => {
     res.json({ enLigne: duels.length, parties: duels.filter(d => d.statut === 'pret').length });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🔥 DOOM DAME: http://localhost:${PORT} | ${pays.length} pays`));
-
-// INVITER UN AMI PAR EMAIL
-app.post('/api/duel/inviter', async (req, res) => {
-    const { pseudo, flag, amiPseudo, amiEmail } = req.body;
-    
-    // Créer une partie
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    duels.push({ code, joueur1: pseudo, flag1: flag, joueur2: null, statut: 'attente', currentPlayer: 'blue', dernierCoup: null });
-    
-    // Envoyer l'invitation par email si un email est fourni
-    if (amiEmail) {
-        const lien = `http://localhost:3000/duel.html?code=${code}`;
-        try {
-            await mailer.sendMail({
-                to: amiEmail,
-                subject: `⚔️ DOOM DAME - ${pseudo} vous invite à un duel !`,
-                html: `
-                    <div style="background:#0a0000; color:#f80; padding:20px; text-align:center; font-family:monospace;">
-                        <h1 style="color:#f40">⚔️ DOOM DAME ⚔️</h1>
-                        <p><b>${pseudo}</b> vous invite à un duel !</p>
-                        <p>Code d'invitation : <b style="font-size:32px;color:#f60">${code}</b></p>
-                        <p>Cliquez ici : <a href="${lien}" style="color:#f60">REJOINDRE LA PARTIE</a></p>
-                        <p>Ou allez sur DOOM DAME et entrez le code manuellement.</p>
-                    </div>
-                `
-            });
-        } catch(e) { console.log('Email non envoyé'); }
-    }
-    
-    res.json({ ok: true, code });
-});
-
-// STOCKAGE DES INVITATIONS
-let invitations = []; // { id, inviteur, invitePseudo, code, statut, date }
-
-// INVITER UN AMI PAR PSEUDO
-app.post('/api/duel/inviter-par-pseudo', async (req, res) => {
+app.post('/api/duel/inviter-par-pseudo', (req, res) => {
     const { inviteurPseudo, inviteurFlag, invitePseudo } = req.body;
-    
-    // Vérifier si l'inviteur existe
-    const inviteur = joueurs.find(j => j.pseudo === inviteurPseudo);
-    if (!inviteur) return res.json({ ok: false, msg: 'Vous devez être connecté' });
-    
-    // Vérifier si l'invité existe
     const invite = joueurs.find(j => j.pseudo === invitePseudo);
-    if (!invite) return res.json({ ok: false, msg: 'Ce pseudo n\'existe pas' });
-    
-    // Vérifier si l'invité n'est pas déjà en duel
+    if (!invite) return res.json({ ok: false, msg: 'Pseudo inexistant' });
     const duelEnCours = duels.find(d => (d.joueur1 === invitePseudo || d.joueur2 === invitePseudo) && d.statut === 'pret');
     if (duelEnCours) return res.json({ ok: false, msg: `${invitePseudo} est déjà en duel` });
-    
-    // Créer une partie
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     duels.push({ code, joueur1: inviteurPseudo, flag1: inviteurFlag, joueur2: null, statut: 'attente', currentPlayer: 'blue', dernierCoup: null });
-    
-    // Stocker l'invitation
-    const invitation = {
-        id: Date.now(),
-        inviteur: inviteurPseudo,
-        inviteurFlag: inviteurFlag,
-        invitePseudo: invitePseudo,
-        code: code,
-        statut: 'en_attente',
-        date: new Date()
-    };
-    invitations.push(invitation);
-    
-    // Envoyer un email aussi (optionnel)
-    try {
-        await mailer.sendMail({
-            to: invite.email,
-            subject: `⚔️ DOOM DAME - ${inviteurPseudo} vous invite à un duel !`,
-            html: `<h1 style="color:#f40">DOOM DAME</h1><p>${inviteurPseudo} vous invite à un duel !</p><p>Code: <b>${code}</b></p><p>Connectez-vous pour rejoindre !</p>`
-        });
-    } catch(e) {}
-    
+    invitations.push({ id: Date.now(), inviteur: inviteurPseudo, invitePseudo, code, statut: 'en_attente' });
+    envoyerEmail(invite.email, `⚔️ ${inviteurPseudo} vous invite !`, `<h1>${inviteurPseudo} vous invite à un duel !</h1><p>Code: <b>${code}</b></p>`);
     res.json({ ok: true, msg: `Invitation envoyée à ${invitePseudo}`, code });
 });
 
-// RÉCUPÉRER LES INVITATIONS POUR UN JOUEUR
 app.get('/api/duel/mes-invitations/:pseudo', (req, res) => {
-    const { pseudo } = req.params;
-    const mesInvitations = invitations.filter(i => i.invitePseudo === pseudo && i.statut === 'en_attente');
+    const mesInvitations = invitations.filter(i => i.invitePseudo === req.params.pseudo && i.statut === 'en_attente');
     res.json({ invitations: mesInvitations });
 });
 
-// ACCEPTER UNE INVITATION
 app.post('/api/duel/accepter-invitation', (req, res) => {
     const { invitationId, pseudo, flag } = req.body;
     const invitation = invitations.find(i => i.id === parseInt(invitationId));
-    
     if (!invitation) return res.json({ ok: false, msg: 'Invitation expirée' });
-    if (invitation.statut !== 'en_attente') return res.json({ ok: false, msg: 'Invitation déjà traitée' });
-    
-    // Rejoindre la partie
+    if (invitation.statut !== 'en_attente') return res.json({ ok: false, msg: 'Déjà traitée' });
     const duel = duels.find(d => d.code === invitation.code);
-    if (duel) {
-        duel.joueur2 = pseudo;
-        duel.flag2 = flag;
-        duel.statut = 'pret';
-    }
-    
+    if (duel) { duel.joueur2 = pseudo; duel.flag2 = flag; duel.statut = 'pret'; }
     invitation.statut = 'acceptee';
-    
     res.json({ ok: true, code: invitation.code });
 });
 
-// ANNULER UNE INVITATION
-app.post('/api/duel/annuler-invitation', (req, res) => {
-    const { invitationId } = req.body;
-    const index = invitations.findIndex(i => i.id === parseInt(invitationId));
-    if (index !== -1) {
-        const code = invitations[index].code;
-        const duelIndex = duels.findIndex(d => d.code === code);
-        if (duelIndex !== -1) duels.splice(duelIndex, 1);
-        invitations.splice(index, 1);
-    }
-    res.json({ ok: true });
-});
-
-// RÉCUPÉRER TOUS LES PSEUDOS POUR LA RECHERCHE
-app.get('/api/pseudos', (req, res) => {
-    const pseudos = joueurs.map(j => ({ pseudo: j.pseudo, flag: j.flag }));
-    res.json(pseudos);
-});
-
-// RECHERCHER DES PSEUDOS (filtre)
-app.get('/api/rechercher-pseudos/:filtre', (req, res) => {
-    const filtre = req.params.filtre.toLowerCase();
-    if (filtre.length < 1) {
-        res.json([]);
-        return;
-    }
-    const resultats = joueurs
-        .filter(j => j.pseudo.toLowerCase().includes(filtre))
-        .slice(0, 10)
-        .map(j => ({ pseudo: j.pseudo, flag: j.flag }));
-    res.json(resultats);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🔥 DOOM DAME: http://localhost:${PORT} | ${pays.length} pays`));
